@@ -1,70 +1,125 @@
-# Getting Started with Create React App
+# Subway Finder - Interactive Map with MBTA Integration
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A React.js application that displays an interactive map using Leaflet, automatically detects your current location, and finds nearby MBTA subway stations using the [MBTA API](https://api-v3.mbta.com/docs/swagger/index.html#/).
+
+## Features
+
+- 🌍 Interactive map powered by Leaflet and OpenStreetMap
+- 📍 Automatic geolocation detection
+- 🎯 Pin marker showing your current location
+- 🚇 **NEW: MBTA Station Integration** - Find nearby subway stations
+- 📍 **NEW: Moveable Pin** - Click anywhere to move the pin and find stations
+- 📱 Responsive design that works on desktop and mobile
+- ⚡ Real-time location updates
+- 🛡️ Error handling for location services
+- 📊 **NEW: Station Information Panel** - Shows distance in miles, accessibility, and station details
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (version 14 or higher)
+- npm or yarn
+
+### Installation
+
+1. Clone the repository or navigate to the project directory
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+### Running the Application
+
+1. Start the development server:
+   ```bash
+   npm start
+   ```
+
+2. Open your browser and navigate to `http://localhost:3000`
+
+3. Allow location access when prompted by your browser
+
+4. Click "Show Nearby Stations" to find MBTA stations near your location
+
+### How It Works
+
+- The application uses the browser's Geolocation API to get your current position
+- If location access is granted, a pin will be placed on the map at your coordinates
+- If location access is denied or unavailable, the map will default to Boston
+- **Click anywhere on the map** to move the pin to a new location
+- **Click "Show Nearby Stations"** to find MBTA subway stations within 1.25 miles of the pinned location
+- **Station markers** appear on the map with distance information in miles and accessibility details
+- **Station sidebar** shows a list of nearby stations with distances and features
+
+## MBTA API Integration
+
+This application integrates with the [MBTA API v3](https://api-v3.mbta.com/docs/swagger/index.html#/) to provide:
+
+- **Real-time station data** from the MBTA system
+- **Distance calculations** using the Haversine formula (displayed in miles)
+- **Station filtering** by proximity (1.25 miles radius)
+- **Accessibility information** for wheelchair access
+- **Station details** including names and coordinates
+
+### API Endpoints Used
+
+- `GET /stops` - Retrieves all MBTA stops with route information
+- Filtered by route types 0 (light rail) and 1 (heavy rail)
+- Includes route relationships for additional station details
+
+## Technologies Used
+
+- **React.js** - Frontend framework
+- **Leaflet** - Interactive maps library
+- **react-leaflet** - React wrapper for Leaflet
+- **Geolocation API** - Browser API for location detection
+- **OpenStreetMap** - Free map tiles
+- **MBTA API v3** - Massachusetts Bay Transportation Authority API
+- **Haversine Formula** - Distance calculation between coordinates (converted to miles)
+
+## Browser Compatibility
+
+This application works best in modern browsers that support:
+- Geolocation API
+- ES6+ JavaScript features
+- CSS Grid and Flexbox
+- Fetch API for HTTP requests
+
+## Troubleshooting
+
+### Location Not Working?
+- Make sure you've allowed location access in your browser
+- Check that your device has GPS enabled (for mobile devices)
+- Try refreshing the page and allowing location access again
+
+### Map Not Loading?
+- Check your internet connection
+- Ensure you're running the latest version of a modern browser
+
+### Stations Not Loading?
+- Verify your internet connection
+- Check if the MBTA API is accessible
+- Try moving the pin to a different location in the Boston area
+- The app searches within a 1.25 miles radius of the pinned location
+
+### No Stations Found?
+- The app only shows stations within 1.25 miles of your location
+- Try moving the pin closer to Boston or other MBTA service areas
+- The app works best in the Greater Boston area where MBTA service is available
 
 ## Available Scripts
 
-In the project directory, you can run:
+- `npm start` - Runs the app in development mode
+- `npm test` - Launches the test runner
+- `npm run build` - Builds the app for production
+- `npm run eject` - Ejects from Create React App (one-way operation)
 
-### `npm start`
+## License
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+This project is open source and available under the MIT License.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Data Sources
 
-### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- **MBTA API**: [https://api-v3.mbta.com/docs/swagger/index.html#/](https://api-v3.mbta.com/docs/swagger/index.html#/)
+- **OpenStreetMap**: [https://www.openstreetmap.org/](https://www.openstreetmap.org/)
