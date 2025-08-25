@@ -7,12 +7,13 @@ A React.js application that displays an interactive map using Leaflet, automatic
 - 🌍 Interactive map powered by Leaflet and OpenStreetMap
 - 📍 Automatic geolocation detection
 - 🎯 Pin marker showing your current location
-- 🚇 **NEW: MBTA Station Integration** - Find nearby subway stations
-- 📍 **NEW: Moveable Pin** - Click anywhere to move the pin and find stations
+- 🚇 **MBTA Station Integration** - Find nearby subway stations
+- 📍 **Moveable Pin** - Click anywhere to move the pin and find stations
 - 📱 Responsive design that works on desktop and mobile
 - ⚡ Real-time location updates
 - 🛡️ Error handling for location services
-- 📊 **NEW: Station Information Panel** - Shows distance in miles, accessibility, and station details
+- 📊 **Station Information Panel** - Shows distance in miles, accessibility, and station details
+- 📚 **Documentation Link** - Easy access to MBTA API documentation directly from the map
 
 ## Getting Started
 
@@ -51,6 +52,7 @@ A React.js application that displays an interactive map using Leaflet, automatic
 - **Click "Show Nearby Stations"** to find MBTA subway stations within 1.25 miles of the pinned location
 - **Station markers** appear on the map with distance information in miles and accessibility details
 - **Station sidebar** shows a list of nearby stations with distances and features
+- **Documentation link** in the top center provides quick access to MBTA API documentation
 
 ## MBTA API Integration
 
@@ -61,12 +63,69 @@ This application integrates with the [MBTA API v3](https://api-v3.mbta.com/docs/
 - **Station filtering** by proximity (1.25 miles radius)
 - **Accessibility information** for wheelchair access
 - **Station details** including names and coordinates
+- **Caching** for improved performance and reduced API calls
 
 ### API Endpoints Used
 
-- `GET /stops` - Retrieves all MBTA stops with route information
-- Filtered by route types 0 (light rail) and 1 (heavy rail)
-- Includes route relationships for additional station details
+#### Primary Endpoint: `GET /stops`
+**URL**: `https://api-v3.mbta.com/stops`
+
+**Purpose**: Retrieves all MBTA stops (stations) with comprehensive route and accessibility information.
+
+**Parameters Used**:
+- `filter[route_type]`: `0,1` - Filters for subway stations only
+  - `0` = Light rail (Green Line)
+  - `1` = Heavy rail (Red, Orange, Blue Lines)
+- `include`: `route` - Includes route relationship data
+- `fields[stop]`: `name,latitude,longitude,wheelchair_boarding` - Specifies which stop fields to return
+- `fields[route]`: `long_name,short_name,route_type` - Specifies which route fields to return
+
+**Response Structure**:
+```json
+{
+  "data": [
+    {
+      "id": "stop_id",
+      "type": "stop",
+      "attributes": {
+        "name": "Station Name",
+        "latitude": 42.123456,
+        "longitude": -71.123456,
+        "wheelchair_boarding": 1
+      },
+      "relationships": {
+        "route": {
+          "data": {
+            "id": "route_id",
+            "type": "route"
+          }
+        }
+      }
+    }
+  ],
+  "included": [
+    {
+      "id": "route_id",
+      "type": "route",
+      "attributes": {
+        "long_name": "Red Line",
+        "short_name": "Red",
+        "route_type": 1
+      }
+    }
+  ]
+}
+```
+
+**Data Processing**:
+- **Distance Calculation**: Uses Haversine formula to calculate distance from user's location to each station
+- **Filtering**: Only stations within 1.25 miles of the user's location are displayed
+- **Caching**: API responses are cached to reduce repeated requests and improve performance
+- **Error Handling**: Graceful handling of API failures with user-friendly error messages
+
+**Rate Limiting**: The MBTA API has rate limits, which is why caching is implemented to minimize API calls.
+
+**Authentication**: This endpoint is publicly accessible and doesn't require an API key, making it ideal for client-side applications.
 
 ## Technologies Used
 
@@ -77,6 +136,7 @@ This application integrates with the [MBTA API v3](https://api-v3.mbta.com/docs/
 - **OpenStreetMap** - Free map tiles
 - **MBTA API v3** - Massachusetts Bay Transportation Authority API
 - **Haversine Formula** - Distance calculation between coordinates (converted to miles)
+- **CSS3** - Modern styling with backdrop filters and smooth transitions
 
 ## Browser Compatibility
 
@@ -85,6 +145,7 @@ This application works best in modern browsers that support:
 - ES6+ JavaScript features
 - CSS Grid and Flexbox
 - Fetch API for HTTP requests
+- Backdrop-filter CSS property (for documentation link styling)
 
 ## Troubleshooting
 
@@ -123,3 +184,9 @@ This project is open source and available under the MIT License.
 
 - **MBTA API**: [https://api-v3.mbta.com/docs/swagger/index.html#/](https://api-v3.mbta.com/docs/swagger/index.html#/)
 - **OpenStreetMap**: [https://www.openstreetmap.org/](https://www.openstreetmap.org/)
+
+## Recent Updates
+
+- Added documentation link overlay on the map for easy access to MBTA API documentation
+- Improved UI with subtle, integrated styling that blends with the map interface
+- Enhanced user experience with better visual feedback and accessibility

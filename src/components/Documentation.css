@@ -1,0 +1,247 @@
+.documentation-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  padding: 20px;
+}
+
+.documentation-modal {
+  background: white;
+  border-radius: 8px;
+  max-width: 800px;
+  max-height: 90vh;
+  width: 100%;
+  position: relative;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.documentation-close {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  z-index: 10;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+}
+
+.documentation-close:hover {
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.documentation-content {
+  padding: 40px;
+  max-height: 90vh;
+  overflow-y: auto;
+  line-height: 1.6;
+}
+
+.documentation-content h1 {
+  color: #333;
+  margin-bottom: 30px;
+  font-size: 2rem;
+  border-bottom: 2px solid #61dafb;
+  padding-bottom: 10px;
+}
+
+.documentation-content h2 {
+  color: #444;
+  margin-top: 30px;
+  margin-bottom: 15px;
+  font-size: 1.5rem;
+}
+
+.documentation-content h3 {
+  color: #555;
+  margin-top: 25px;
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+}
+
+.documentation-content h4 {
+  color: #666;
+  margin-top: 20px;
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+}
+
+.documentation-content p {
+  margin-bottom: 15px;
+  color: #555;
+}
+
+.documentation-content ul, .documentation-content ol {
+  margin-bottom: 15px;
+  padding-left: 20px;
+}
+
+.documentation-content li {
+  margin-bottom: 8px;
+  color: #555;
+}
+
+.documentation-content ul ul {
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+/* New div-based list styles */
+.feature-list, .step-list, .tech-list, .param-list, .processing-list, .source-list {
+  margin-bottom: 15px;
+}
+
+.feature-list > div, .step-list > div, .tech-list > div, .param-list > div, .processing-list > div, .source-list > div {
+  margin-bottom: 12px;
+  color: #555;
+  line-height: 1.5;
+}
+
+.param-sub {
+  margin-left: 20px;
+  margin-bottom: 8px;
+  color: #666;
+  font-size: 0.95em;
+}
+
+.json-example {
+  margin: 20px 0;
+  text-align: left;
+}
+
+.json-example pre {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 20px;
+  overflow-x: auto;
+  margin: 0;
+  font-size: 0.9em;
+  line-height: 1.4;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+  text-align: left;
+  white-space: pre;
+}
+
+.json-example pre code {
+  background: none;
+  padding: 0;
+  color: #333;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.85em;
+  line-height: 1.5;
+  white-space: pre;
+  text-align: left;
+  display: block;
+}
+
+.field-list {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-top: 8px;
+}
+
+.field-list > div {
+  margin-bottom: 8px;
+  color: #555;
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
+.field-list > div:last-child {
+  margin-bottom: 0;
+}
+
+.field-list code {
+  background-color: #e9ecef;
+  color: #d63384;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+.documentation-content code {
+  background-color: #f5f5f5;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #d63384;
+}
+
+.documentation-content pre {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 5px;
+  padding: 15px;
+  overflow-x: auto;
+  margin: 15px 0;
+}
+
+.documentation-content pre code {
+  background: none;
+  padding: 0;
+  color: #333;
+  font-size: 0.85em;
+  line-height: 1.4;
+}
+
+.documentation-content a {
+  color: #61dafb;
+  text-decoration: none;
+}
+
+.documentation-content a:hover {
+  text-decoration: underline;
+}
+
+.documentation-content strong {
+  color: #333;
+  font-weight: 600;
+}
+
+.documentation-content section {
+  margin-bottom: 30px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .documentation-modal {
+    max-width: 95vw;
+    max-height: 95vh;
+  }
+  
+  .documentation-content {
+    padding: 20px;
+  }
+  
+  .documentation-content h1 {
+    font-size: 1.5rem;
+  }
+  
+  .documentation-content h2 {
+    font-size: 1.3rem;
+  }
+  
+  .documentation-content h3 {
+    font-size: 1.1rem;
+  }
+}

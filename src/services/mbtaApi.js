@@ -26,9 +26,9 @@ const makeApiCall = async (url, maxRetries = 2) => {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`Making API call (attempt ${attempt}): ${url}`);
-      
+
       const response = await fetch(url);
-      
+     
       if (response.status === 429) {
         const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s
         console.log(`Rate limit hit, waiting ${waitTime}ms before retry...`);
