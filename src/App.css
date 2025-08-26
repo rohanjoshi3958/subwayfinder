@@ -42,13 +42,13 @@ body {
 
 .documentation-link {
   position: absolute;
-  top: 20px;
+  top: 40px;
   left: 50%;
   transform: translateX(-50%);
   color: #333;
   text-decoration: none;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 1.5rem;
   padding: 0.3rem 0.8rem;
   border-radius: 3px;
   transition: all 0.2s ease;
