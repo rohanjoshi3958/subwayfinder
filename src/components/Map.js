@@ -223,9 +223,21 @@ const Map = () => {
       console.log('Fetching stations for position:', position);
       const nearbyStations = await fetchNearbyStations(position[0], position[1], 1.25);
       setStations(nearbyStations);
+      // Clear any previous errors when stations are fetched successfully
+      setError(null);
     } catch (error) {
       console.error('Error fetching stations:', error);
-      setError('Unable to fetch nearby stations. Please try again.');
+      setError('Unable to fetch nearby stations. Showing default location (Boston).');
+      // Set position to Boston when there's an error
+      const bostonPosition = [42.3601, -71.0589];
+      setPosition(bostonPosition);
+      setUserLocation(bostonPosition);
+      setStations([]);
+      
+      // Auto-clear the error after 3 seconds to show the map
+      setTimeout(() => {
+        setError(null);
+      }, 3000);
     } finally {
       setLoadingStations(false);
     }
@@ -322,6 +334,8 @@ const Map = () => {
       // Clear old data and show loading when enabling stations
       setStations([]);
       setLoadingStations(true);
+      // Clear any previous errors when toggling stations
+      setError(null);
       fetchStations();
     }
   };
@@ -340,7 +354,7 @@ const Map = () => {
     );
   }
 
-  if (error) {
+  if (error && !position) {
     return (
       <div style={{ 
         display: 'flex', 
@@ -348,10 +362,41 @@ const Map = () => {
         alignItems: 'center', 
         height: '100vh',
         flexDirection: 'column',
-        gap: '10px'
+        gap: '15px',
+        textAlign: 'center',
+        padding: '20px'
       }}>
-        <div style={{ color: 'red' }}>{error}</div>
-        <div>Showing default location (Boston)</div>
+        <div style={{ 
+          fontSize: '24px', 
+          color: '#ff6b35',
+          marginBottom: '10px'
+        }}>
+          🚇
+        </div>
+        <div style={{ 
+          color: '#d32f2f', 
+          fontSize: '18px',
+          fontWeight: 'bold'
+        }}>
+          {error}
+        </div>
+        <div style={{ 
+          color: '#666', 
+          fontSize: '16px',
+          maxWidth: '400px',
+          lineHeight: '1.5'
+        }}>
+          Loading default location (Boston) and placing pin in the center of the city...
+        </div>
+        <div style={{
+          width: '40px',
+          height: '40px',
+          border: '4px solid #f3f3f3',
+          borderTop: '4px solid #ff6b35',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite',
+          marginTop: '20px'
+        }}></div>
       </div>
     );
   }
@@ -372,6 +417,11 @@ const Map = () => {
       }}>
         <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
           {isUserLocation ? '📍 Your Current Location' : '📍 Selected Location'}
+          {error && position && position[0] === 42.3601 && position[1] === -71.0589 && (
+            <span style={{ color: '#ff6b35', fontSize: '12px', marginLeft: '8px' }}>
+              (Default: Boston)
+            </span>
+          )}
         </div>
         <div>Click anywhere on the map to move the pin</div>
         <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
