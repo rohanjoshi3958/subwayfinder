@@ -13,48 +13,129 @@ const MBTA_LINES = {
   'Mattapan': { emoji: 'M🔴', color: '#FFC72C' }
 };
 
-// Cache for routes data to avoid repeated API calls
-let routesCache = null;
-let routesCacheTimestamp = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-// Helper function to add delay between API calls
+// Helper function to add delay between API calls (retries / rate limits)
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Helper function to make API calls with rate limiting and retry logic
-const makeApiCall = async (url, maxRetries = 2) => {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`Making API call (attempt ${attempt}): ${url}`);
+const throwIfAborted = (signal) => {
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
+};
 
-      const response = await fetch(url);
-     
+/** Like delay(), but bails out quickly when the user moves the pin (AbortSignal). */
+const delayCancellable = async (ms, signal) => {
+  if (!ms || ms <= 0) return;
+  const step = 150;
+  let remaining = ms;
+  while (remaining > 0) {
+    throwIfAborted(signal);
+    const chunk = Math.min(step, remaining);
+    await delay(chunk);
+    remaining -= chunk;
+  }
+};
+
+/**
+ * MBTA `filter[radius]` is a circle in lat/lon space (not true miles on the ground).
+ * Use a generous radius, then filter by real distance (Haversine) in the client.
+ */
+const milesToStopFilterRadiusDegrees = (radiusMiles, latitude) => {
+  const latRad = (latitude * Math.PI) / 180;
+  const milesPerDegLat = 69;
+  const milesPerDegLon = 69 * Math.cos(latRad);
+  const dLat = radiusMiles / milesPerDegLat;
+  const dLon = radiusMiles / milesPerDegLon;
+  return Math.max(dLat, dLon) * 1.45;
+};
+
+/** Prefer parent station id so one `/routes` call returns all lines at that complex. */
+const canonicalStopIdForRoutes = (stop) => {
+  const parent = stop.relationships?.parent_station?.data?.id;
+  return parent || stop.id;
+};
+
+/** MBTA unauthenticated limit is ~20 requests/min; keep stop pagination minimal. */
+const STOPS_PAGE_LIMIT = 1000;
+const MAX_STOP_PAGES = 2;
+
+const appendApiKey = (url) => {
+  const key = process.env.REACT_APP_MBTA_API_KEY;
+  if (!key) return url;
+  try {
+    const u = new URL(url);
+    u.searchParams.set('api_key', key);
+    return u.toString();
+  } catch {
+    return url;
+  }
+};
+
+/**
+ * At most MAX_STOP_PAGES requests. One page almost always covers a 1.25mi search in Boston.
+ */
+const fetchStopsInRadiusPages = async (latitude, longitude, radiusDeg, signal) => {
+  const params = new URLSearchParams({
+    'filter[route_type]': '0,1',
+    'filter[latitude]': String(latitude),
+    'filter[longitude]': String(longitude),
+    'filter[radius]': String(radiusDeg),
+    'page[limit]': String(STOPS_PAGE_LIMIT),
+  });
+  const all = [];
+  let url = appendApiKey(`${MBTA_BASE_URL}/stops?${params.toString()}`);
+  let pages = 0;
+  while (url && pages < MAX_STOP_PAGES) {
+    throwIfAborted(signal);
+    const page = await makeApiCall(url, { signal });
+    if (page.data?.length) {
+      all.push(...page.data);
+    }
+    const next = page.links?.next || null;
+    url = next ? appendApiKey(next) : null;
+    pages += 1;
+    if (!page.data || page.data.length < STOPS_PAGE_LIMIT) {
+      break;
+    }
+  }
+  return all;
+};
+
+// Helper function to make API calls with rate limiting and retry logic
+const makeApiCall = async (url, options = {}) => {
+  const { signal, maxRetries = 4 } = options;
+  const requestUrl = appendApiKey(url);
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    throwIfAborted(signal);
+    try {
+      const response = await fetch(requestUrl, { signal });
+
       if (response.status === 429) {
-        const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s
-        console.log(`Rate limit hit, waiting ${waitTime}ms before retry...`);
-        await delay(waitTime);
-        continue; // Retry
+        const retryAfter = parseInt(response.headers.get('Retry-After') || '0', 10);
+        const waitMs =
+          retryAfter > 0
+            ? Math.min(retryAfter * 1000, 45000)
+            : Math.min(12000, Math.pow(2, attempt) * 800);
+        console.warn(`MBTA rate limit (429), waiting ${waitMs}ms before retry ${attempt}/${maxRetries}`);
+        await delayCancellable(waitMs, signal);
+        continue;
       }
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
-      const data = await response.json();
-      console.log(`API call successful: ${url}`);
-      return data;
-      
+
+      return await response.json();
     } catch (error) {
-      console.error(`API call failed (attempt ${attempt}): ${url}`, error);
-      
-      if (attempt === maxRetries) {
-        throw error; // Re-throw on final attempt
+      if (error.name === 'AbortError') {
+        throw error;
       }
-      
-      // Wait before retry (exponential backoff)
-      const waitTime = Math.pow(2, attempt) * 1000;
-      console.log(`Waiting ${waitTime}ms before retry...`);
-      await delay(waitTime);
+      console.error(`API call failed (attempt ${attempt}): ${requestUrl}`, error);
+
+      if (attempt === maxRetries) {
+        throw error;
+      }
+
+      await delayCancellable(Math.pow(2, attempt) * 500, signal);
     }
   }
 };
@@ -73,25 +154,51 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return distanceKm * 0.621371; // Convert to miles
 };
 
-// Get line information from route data
+// Get line information from route data (MBTA `route.id` is the most reliable key)
 const getLineInfo = (route) => {
   if (!route || !route.attributes) {
-    console.log('Invalid route object:', route);
     return null;
   }
-  
-  const routeName = route.attributes.long_name || route.attributes.short_name || '';
-  const routeId = route.id || '';
-  
-  // Map route names to line colors
-  if (routeName.includes('Red') || routeId.includes('Red')) {
+
+  const id = String(route.id || '');
+  const routeName = `${route.attributes.long_name || ''} ${route.attributes.short_name || ''}`;
+
+  if (id === 'Red' || id.startsWith('Red')) {
     return MBTA_LINES['Red'];
   }
-  if (routeName.includes('Orange') || routeId.includes('Orange')) {
+  if (id === 'Orange' || id.includes('Orange')) {
     return MBTA_LINES['Orange'];
   }
-  if (routeName.includes('Blue') || routeId.includes('Blue')) {
+  if (id === 'Blue' || id.startsWith('Blue')) {
     return MBTA_LINES['Blue'];
+  }
+  if (id === 'Mattapan' || id.includes('Mattapan')) {
+    return MBTA_LINES['Mattapan'];
+  }
+  if (id === 'Green-B' || id.includes('Green-B')) {
+    return MBTA_LINES['Green-B'];
+  }
+  if (id === 'Green-C' || id.includes('Green-C')) {
+    return MBTA_LINES['Green-C'];
+  }
+  if (id === 'Green-D' || id.includes('Green-D')) {
+    return MBTA_LINES['Green-D'];
+  }
+  if (id === 'Green-E' || id.includes('Green-E')) {
+    return MBTA_LINES['Green-E'];
+  }
+
+  if (routeName.includes('Red')) {
+    return MBTA_LINES['Red'];
+  }
+  if (routeName.includes('Orange')) {
+    return MBTA_LINES['Orange'];
+  }
+  if (routeName.includes('Blue')) {
+    return MBTA_LINES['Blue'];
+  }
+  if (routeName.includes('Mattapan')) {
+    return MBTA_LINES['Mattapan'];
   }
   if (routeName.includes('Green') && routeName.includes('B')) {
     return MBTA_LINES['Green-B'];
@@ -105,74 +212,46 @@ const getLineInfo = (route) => {
   if (routeName.includes('Green') && routeName.includes('E')) {
     return MBTA_LINES['Green-E'];
   }
-  if (routeName.includes('Mattapan') || routeId.includes('Mattapan')) {
-    return MBTA_LINES['Mattapan'];
-  }
-  
-  // Default for Green line without specific branch
-  if (routeName.includes('Green') || routeId.includes('Green')) {
+  if (routeName.includes('Green') || id.includes('Green')) {
     return MBTA_LINES['Green-B'];
   }
-  
+
   return null;
 };
 
-// Get cached routes or fetch new ones
-const getRoutesData = async () => {
-  const now = Date.now();
-  
-  // Check if we have valid cached data
-  if (routesCache && (now - routesCacheTimestamp) < CACHE_DURATION) {
-    console.log('Using cached routes data');
-    return routesCache;
+const routeToDisplay = (route) => {
+  const line = getLineInfo(route);
+  const name = route.attributes.long_name || route.attributes.short_name || route.id;
+  if (line) {
+    return {
+      id: route.id,
+      name,
+      ...line,
+    };
   }
-  
-  console.log('Fetching fresh routes data');
-  const routesData = await makeApiCall(`${MBTA_BASE_URL}/routes?filter[type]=0,1`);
-  
-  // Cache the data
-  routesCache = routesData;
-  routesCacheTimestamp = now;
-  
-  return routesData;
+  return {
+    id: route.id,
+    name,
+    emoji: '🚇',
+    color: '#555',
+  };
 };
 
-// Fetch nearby MBTA stations
-export const fetchNearbyStations = async (latitude, longitude, radius = 1.25) => {
+// Fetch nearby MBTA stations (pass { signal } to cancel when the pin moves)
+export const fetchNearbyStations = async (latitude, longitude, radius = 1.25, options = {}) => {
+  const { signal } = options;
   try {
     console.log('Starting optimized MBTA API calls...');
-    
-    // Get routes data (cached if possible)
-    const routesData = await getRoutesData();
-    
-    console.log('Routes API Response:', routesData);
-    
-    // Create a map of route IDs to line information
-    const routeLineMap = {};
-    if (routesData.data) {
-      console.log('Processing routes data:', routesData.data.length, 'routes');
-      routesData.data.forEach((route, index) => {
-        const lineInfo = getLineInfo(route);
-        if (lineInfo) {
-          routeLineMap[route.id] = {
-            id: route.id,
-            name: route.attributes.long_name || route.attributes.short_name,
-            ...lineInfo
-          };
-        }
-      });
-    }
-    
-    console.log('Route Line Map:', routeLineMap);
 
-    // Get all stops with rate limiting
-    const data = await makeApiCall(`${MBTA_BASE_URL}/stops?filter[route_type]=0,1`);
-    
-    if (!data.data) {
-      throw new Error('No station data received');
+    const radiusDeg = milesToStopFilterRadiusDegrees(radius, latitude);
+    const stopRows = await fetchStopsInRadiusPages(latitude, longitude, radiusDeg, signal);
+
+    if (!stopRows.length) {
+      console.log('No stops returned from MBTA within filter radius');
     }
 
-    console.log('Stops API Response:', data);
+    const data = { data: stopRows };
+    console.log('Stops loaded:', stopRows.length);
 
     // Helper function to create a unique key for a station
     const createStationKey = (stop) => {
@@ -231,56 +310,51 @@ export const fetchNearbyStations = async (latitude, longitude, radius = 1.25) =>
     console.log(`Limiting to ${maxStationsToFetch} closest stations to reduce API calls`);
     
     // Collect stop IDs from only the closest stations
-    const allStopIds = [];
+    const canonicalIds = [
+      ...new Set(
+        limitedStations.map(({ stationGroup }) =>
+          canonicalStopIdForRoutes(stationGroup.stops[0])
+        )
+      ),
+    ];
+    console.log('Canonical stop IDs for route lookup:', canonicalIds);
+
+    const canonicalRoutesMap = new Map();
+
+    for (const stopId of canonicalIds) {
+      throwIfAborted(signal);
+      try {
+        const stopRoutesData = await makeApiCall(
+          `${MBTA_BASE_URL}/routes?filter[stop]=${encodeURIComponent(stopId)}&filter[type]=0,1`,
+          { signal }
+        );
+        const routes = [];
+        if (stopRoutesData.data) {
+          stopRoutesData.data.forEach((route) => {
+            routes.push(routeToDisplay(route));
+          });
+        }
+        canonicalRoutesMap.set(stopId, routes);
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          throw error;
+        }
+        console.error(`Error fetching routes for stop ${stopId}:`, error);
+        canonicalRoutesMap.set(stopId, []);
+      }
+      await delayCancellable(70, signal);
+    }
+
+    const stopRoutesMap = new Map();
     limitedStations.forEach(({ stationGroup }) => {
-      stationGroup.stops.forEach(stop => {
-        allStopIds.push(stop.id);
+      const canonical = canonicalStopIdForRoutes(stationGroup.stops[0]);
+      const routes = canonicalRoutesMap.get(canonical) || [];
+      stationGroup.stops.forEach((stop) => {
+        stopRoutesMap.set(stop.id, routes);
       });
     });
-    
-    console.log('Stop IDs to fetch routes for (limited):', allStopIds);
-    
-    // Use individual requests for accurate route mapping
-    const stopRoutesMap = new Map();
-    
-    for (const stopId of allStopIds) {
-      try {
-        console.log(`Fetching routes for stop: ${stopId}`);
-        
-        // Add delay between requests to avoid rate limiting
-        if (stopId !== allStopIds[0]) {
-          await delay(500); // Reduced delay for faster performance
-        }
-        
-        const stopRoutesData = await makeApiCall(`${MBTA_BASE_URL}/routes?filter[stop]=${stopId}&filter[type]=0,1`);
-        
-        console.log(`Routes for stop ${stopId}:`, stopRoutesData);
-        
-        if (stopRoutesData.data) {
-          const routes = [];
-          stopRoutesData.data.forEach(route => {
-            const lineInfo = getLineInfo(route);
-            if (lineInfo) {
-              const routeInfo = {
-                id: route.id,
-                name: route.attributes.long_name || route.attributes.short_name,
-                ...lineInfo
-              };
-              routes.push(routeInfo);
-            }
-          });
-          stopRoutesMap.set(stopId, routes);
-        } else {
-          stopRoutesMap.set(stopId, []);
-        }
-        
-      } catch (error) {
-        console.error(`Error fetching routes for stop ${stopId}:`, error);
-        stopRoutesMap.set(stopId, []);
-      }
-    }
-    
-    console.log('Stop routes map:', stopRoutesMap);
+
+    console.log('Stop routes map (via canonical parents):', stopRoutesMap);
 
     // Process stations with their routes
     const stationsWithRoutes = stationsWithDistance.map((stationData) => {
@@ -291,22 +365,17 @@ export const fetchNearbyStations = async (latitude, longitude, radius = 1.25) =>
       
       console.log(`Processing station group: ${stationGroup.name} with ${stationGroup.stops.length} stops`);
       
-      // Check if this station is in our limited set (has route data)
-      const hasRouteData = stationGroup.stops.some(stop => stopRoutesMap.has(stop.id));
-      
+      const hasRouteData = stationGroup.stops.some(
+        (stop) => (stopRoutesMap.get(stop.id) || []).length > 0
+      );
+
       if (hasRouteData) {
-        // Get routes for each stop in the station group
-        stationGroup.stops.forEach(stop => {
+        stationGroup.stops.forEach((stop) => {
           const stopRoutes = stopRoutesMap.get(stop.id) || [];
-          console.log(`Routes for stop ${stop.id}:`, stopRoutes);
-          
-          stopRoutes.forEach(route => {
+          stopRoutes.forEach((route) => {
             allRoutes.set(route.id, route);
           });
         });
-      } else {
-        // For stations beyond our limit, show a placeholder message
-        console.log(`Station ${stationGroup.name} is beyond the ${maxStationsToFetch} closest stations - no route data fetched`);
       }
       
       console.log(`Final allRoutes for ${stationGroup.name}:`, Array.from(allRoutes.values()));

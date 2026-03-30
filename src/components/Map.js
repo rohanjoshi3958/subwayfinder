@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -106,6 +106,7 @@ const Map = () => {
   const [loadingStations, setLoadingStations] = useState(false);
   const [showStations, setShowStations] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
+  const stationsAbortRef = useRef(null);
 
   useEffect(() => {
     // Get user's current location
@@ -186,7 +187,7 @@ const Map = () => {
       
       // Add a fallback timeout in case geolocation hangs
       geolocationTimeout = setTimeout(() => {
-        if (!isLocationSet && loading) {
+        if (!isLocationSet) {
           console.log('Geolocation timeout, using fallback location');
           isLocationSet = true;
           setError('Location request timed out. Using default location (Boston).');
@@ -215,45 +216,57 @@ const Map = () => {
     }
   }, []); // Empty dependency array - only run once on mount
 
-  const fetchStations = useCallback(async () => {
+  const fetchStations = useCallback(async (signal) => {
     if (!position) return;
-    
+
     setLoadingStations(true);
     try {
-      console.log('Fetching stations for position:', position);
-      const nearbyStations = await fetchNearbyStations(position[0], position[1], 1.25);
+      const nearbyStations = await fetchNearbyStations(position[0], position[1], 1.25, {
+        signal,
+      });
+      if (signal.aborted) return;
       setStations(nearbyStations);
-      // Clear any previous errors when stations are fetched successfully
       setError(null);
     } catch (error) {
+      if (error.name === 'AbortError') {
+        return;
+      }
       console.error('Error fetching stations:', error);
-      setError('Unable to fetch nearby stations. Showing default location (Boston).');
-      // Set position to Boston when there's an error
-      const bostonPosition = [42.3601, -71.0589];
-      setPosition(bostonPosition);
-      setUserLocation(bostonPosition);
+      setError('Unable to fetch nearby stations. Your pin stays where you placed it — try again in a moment.');
       setStations([]);
-      
-      // Auto-clear the error after 3 seconds to show the map
       setTimeout(() => {
         setError(null);
-      }, 3000);
+      }, 5000);
     } finally {
-      setLoadingStations(false);
+      if (!signal.aborted) {
+        setLoadingStations(false);
+      }
     }
   }, [position]);
 
-  // Fetch nearby stations when position changes
+  // Debounced fetch; aborts in-flight MBTA work when the pin moves so old 429 retries don't stack
   useEffect(() => {
-    if (position && showStations) {
-      // Clear old data first
-      setStations([]);
-      setLoadingStations(true);
-      // Small delay to ensure state updates are processed
-      setTimeout(() => {
-        fetchStations();
-      }, 10);
+    if (!position || !showStations) {
+      stationsAbortRef.current?.abort();
+      stationsAbortRef.current = null;
+      setLoadingStations(false);
+      return undefined;
     }
+
+    stationsAbortRef.current?.abort();
+    const ac = new AbortController();
+    stationsAbortRef.current = ac;
+
+    setStations([]);
+    setLoadingStations(true);
+    const t = setTimeout(() => {
+      fetchStations(ac.signal);
+    }, 600);
+
+    return () => {
+      clearTimeout(t);
+      ac.abort();
+    };
   }, [position, showStations, fetchStations]);
 
   const handleMapClick = (newPosition) => {
@@ -282,12 +295,6 @@ const Map = () => {
           setPosition(newUserPos);
           setIsUserLocation(true);
           setGettingLocation(false);
-          // Clear old station data immediately
-          setStations([]);
-          setLoadingStations(true);
-          if (showStations) {
-            fetchStations();
-          }
         },
         (err) => {
           console.error('Fresh geolocation error:', {
@@ -300,12 +307,6 @@ const Map = () => {
           setPosition(userLocation);
           setIsUserLocation(true);
           setGettingLocation(false);
-          // Clear old station data immediately
-          setStations([]);
-          setLoadingStations(true);
-          if (showStations) {
-            fetchStations();
-          }
         },
         {
           enableHighAccuracy: false, // Use lower accuracy for better compatibility
@@ -319,25 +320,16 @@ const Map = () => {
       setPosition(userLocation);
       setIsUserLocation(true);
       setGettingLocation(false);
-      // Clear old station data immediately
-      setStations([]);
-      setLoadingStations(true);
-      if (showStations) {
-        fetchStations();
-      }
     }
   };
 
   const toggleStations = () => {
-    setShowStations(!showStations);
-    if (!showStations && position) {
-      // Clear old data and show loading when enabling stations
-      setStations([]);
-      setLoadingStations(true);
-      // Clear any previous errors when toggling stations
-      setError(null);
-      fetchStations();
-    }
+    setShowStations((prev) => {
+      if (!prev) {
+        setError(null);
+      }
+      return !prev;
+    });
   };
 
   if (loading) {
