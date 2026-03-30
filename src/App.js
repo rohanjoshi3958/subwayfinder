@@ -17,13 +17,16 @@ function App() {
   return (
     <div className="App">
       <Map />
-      <button
-        type="button"
-        onClick={handleDocumentationClick}
+      <a 
+        href="#" 
+        onClick={(e) => {
+          e.preventDefault();
+          handleDocumentationClick();
+        }}
         className="documentation-link"
       >
         Documentation
-      </button>
+      </a>
       <Documentation 
         isOpen={isDocumentationOpen} 
         onClose={handleCloseDocumentation} 

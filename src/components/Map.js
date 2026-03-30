@@ -186,7 +186,7 @@ const Map = () => {
       
       // Add a fallback timeout in case geolocation hangs
       geolocationTimeout = setTimeout(() => {
-        if (!isLocationSet) {
+        if (!isLocationSet && loading) {
           console.log('Geolocation timeout, using fallback location');
           isLocationSet = true;
           setError('Location request timed out. Using default location (Boston).');
